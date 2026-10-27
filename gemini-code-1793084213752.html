@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>클래스메이트 - 스마트 학습 플랫폼</title>
+    <!-- Tailwind CSS 및 React/Babel CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        body { font-family: 'Pretendard', sans-serif; -webkit-tap-highlight-color: transparent; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        function App() {
+            // 사용자 및 인증 상태
+            const [user, setUser] = useState(null); 
+            const [authView, setAuthView] = useState('login'); 
+            const [isEditingProfile, setIsEditingProfile] = useState(false);
+            const [newNicknameInput, setNewNicknameInput] = useState('');
+            
+            // 입력 폼 상태
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [nickname, setNickname] = useState('');
+            const [authMessage, setAuthMessage] = useState('');
+
+            // 네비게이션 상태 ('home', 'study', 'quiz', 'wrong', 'community', 'teacher_dash', 'teacher_class', 'create_post')
+            const [currentTab, setCurrentTab] = useState('home');
+            
+            // 과목 및 학습 데이터 (초기값 빈 상태)
+            const [customCourses, setCustomCourses] = useState({});
+            const [selectedSubject, setSelectedSubject] = useState(null);
+
+            // 문제 풀이 (객관식, 단답형, 빈칸 뚫기 지원)
+            const [quizzes, setQuizzes] = useState([]);
+            const [wrongNotes, setWrongNotes] = useState([]);
+            const [studyTime, setStudyTime] = useState(0); 
+            const [correctCount, setCorrectCount] = useState(0);
+            const [totalQuizCount, setTotalQuizCount] = useState(0);
+
+            // 학생 학습 기록 (선생님 모니터링용)
+            const [studentRecords, setStudentRecords] = useState({}); 
+
+            // 클래스 가입 신청 관리 상태
+            const [classRequests, setClassRequests] = useState([]);
+            const [joinedClassStatus, setJoinedClassStatus] = useState('미가입'); // '미가입', '대기중', '승인됨'
+            const [selectedStudentForDetail, setSelectedStudentForDetail] = useState(null);
+
+            // 커뮤니티 글 목록
+            const [posts, setPosts] = useState([]);
+            const [newPostTitle, setNewPostTitle] = useState('');
+            const [newPostContent, setNewPostContent] = useState('');
+            const [newPostCategory, setNewPostCategory] = useState('');
+            const [newPostImage, setNewPostImage] = useState('');
+            const [communitySearch, setCommunitySearch] = useState('');
+            const [communityFilterCat, setCommunityFilterCat] = useState('전체');
+            const [communityFilterStatus, setCommunityFilterStatus] = useState('전체');
+            const [selectedPost, setSelectedPost] = useState(null);
+
+            // 선생님 전용 새 카테고리/강의/문제 입력 폼
+            const [newCatKey, setNewCatKey] = useState('');
+            const [newCatTitle, setNewCatTitle] = useState('');
+            const [newUnitTitle, setNewUnitTitle] = useState('');
+            const [newUnitContent, setNewUnitContent] = useState('');
+            
+            // 문제 출제 폼 상세 상태
+            const [quizType, setQuizType] = useState('multiple'); 
+            const [newQuizQ, setNewQuizQ] = useState('');
+            const [newQuizOpts, setNewQuizOpts] = useState(['', '', '', '']);
+            const [newQuizAns, setNewQuizAns] = useState('0'); 
+            const [newQuizExp, setNewQuizExp] = useState('');
+
+            // 회원가입 처리
+            const handleSignup = (e) => {
+                e.preventDefault();
+                if (!email || !password || !nickname) {
+                    setAuthMessage('모든 항목을 입력해주세요.');
+                    return;
+                }
+
+                const users = JSON.parse(localStorage.getItem('classmate_users') || '[]');
+                if (users.some(u => u.email === email)) {
+                    setAuthMessage('이미 가입된 이메일 주소입니다.');
+                    return;
+                }
+
+                const role = (email.trim() === 'circlecakwon@gmail.com' || email.trim() === 'teacher1@gmail.com') ? 'teacher' : 'student';
+                users.push({ email, password, nickname, role });
+                localStorage.setItem('classmate_users', JSON.stringify(users));
+
+                setAuthMessage('');
+                alert('회원가입이 완료되었습니다! 로그인해주세요.');
+                setAuthView('login');
+            };
+
+            // 로그인 처리
+            const handleLogin = (e) => {
+                e.preventDefault();
+                if (!email || !password) {
+                    setAuthMessage('이메일과 비밀번호를 입력해주세요.');
+                    return;
+                }
+
+                const users = JSON.parse(localStorage.getItem('classmate_users') || '[]');
+                
+                const teachers = [
+                    { email: 'circlecakwon@gmail.com', password: 'password123', nickname: 'circlecakwon 선생님', role: 'teacher' },
+                    { email: 'teacher1@gmail.com', password: 'teacher1', nickname: 'teacher1 선생님', role: 'teacher' }
+                ];
+
+                teachers.forEach(t => {
+                    if (!users.some(u => u.email === t.email)) {
+                        users.push(t);
+                    }
+                });
+                localStorage.setItem('classmate_users', JSON.stringify(users));
+
+                const foundUser = users.find(u => u.email === email);
+                if (!foundUser) {
+                    setAuthMessage('존재하지 않는 계정입니다. 회원가입을 먼저 진행해주세요.');
+                    return;
+                }
+
+                if (foundUser.password !== password) {
+                    setAuthMessage('비밀번호가 일치하지 않습니다. 다시 확인해주세요.');
+                    return;
+                }
+
+                setUser({ email: foundUser.email, nickname: foundUser.nickname, role: foundUser.role });
+                setNewNicknameInput(foundUser.nickname);
+                setCurrentTab(foundUser.role === 'teacher' ? 'teacher_dash' : 'home');
+            };
+
+            const handleLogout = () => {
+                setUser(null);
+                setEmail('');
+                setPassword('');
+                setAuthMessage('');
+                setCurrentTab('home');
+            };
+
+            const handleUpdateProfile = () => {
+                if (!newNicknameInput) return;
+                const updatedUser = { ...user, nickname: newNicknameInput };
+                setUser(updatedUser);
+
+                const users = JSON.parse(localStorage.getItem('classmate_users') || '[]');
+                const newUsers = users.map(u => u.email === user.email ? { ...u, nickname: newNicknameInput } : u);
+                localStorage.setItem('classmate_users', JSON.stringify(newUsers));
+
+                setIsEditingProfile(false);
+                alert('닉네임이 성공적으로 변경되었습니다!');
+            };
+
+            const handleAddCategory = (e) => {
+                e.preventDefault();
+                if (!newCatKey || !newCatTitle) return;
+                if (customCourses[newCatKey]) {
+                    alert('이미 존재하는 과목 코드입니다.');
+                    return;
+                }
+                setCustomCourses({
+                    ...customCourses,
+                    [newCatKey]: { title: newCatTitle, color: 'bg-indigo-500 text-white', units: [] }
+                });
+                setNewCatKey('');
+                setNewCatTitle('');
+                alert('새로운 과목 카테고리가 생성되었습니다!');
+            };
+
+            const handleAddUnit = (subjectKey, e) => {
+                e.preventDefault();
+                if (!newUnitTitle) return;
+                const updated = { ...customCourses };
+                const newUnit = { id: updated[subjectKey].units.length + 1, title: newUnitTitle, content: newUnitContent, summary: '등록된 핵심 요약' };
+                updated[subjectKey].units.push(newUnit);
+                setCustomCourses(updated);
+                setNewUnitTitle('');
+                setNewUnitContent('');
+                alert('해당 과목에 새로운 단원이 추가되었습니다!');
+            };
+
+            const handleAddQuiz = (e) => {
+                e.preventDefault();
+                if (!newQuizQ) return;
+                const targetSubj = document.getElementById('quiz_subject_select').value;
+                if (!targetSubj) {
+                    alert('먼저 과목을 생성한 뒤 문제를 출제해주세요!');
+                    return;
+                }
+
+                const newQ = {
+                    id: quizzes.length + 1,
+                    subject: targetSubj,
+                    type: quizType, 
+                    question: newQuizQ,
+                    options: quizType === 'multiple' ? newQuizOpts : [],
+                    answer: quizType === 'multiple' ? parseInt(newQuizAns) : newQuizAns,
+                    explanation: newQuizExp
+                };
+                setQuizzes([...quizzes, newQ]);
+                setNewQuizQ('');
+                setNewQuizOpts(['', '', '', '']);
+                setNewQuizAns('0');
+                setNewQuizExp('');
+                alert(`[${customCourses[targetSubj].title}]에 새로운 퀴즈가 출제되었습니다!`);
+            };
+
+            // 로그인/회원가입 화면
+            if (!user) {
+                return (
+                    <div className="flex items-center justify-center min-h-screen bg-slate-100 px-4">
+                        <div className="max-w-md w-full bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-xl">
+                            <div className="text-center mb-6 md:mb-8">
+                                <h1 className="text-2xl md:text-3xl font-black text-indigo-600 mb-2">ClassMate</h1>
+                                <p className="text-slate-500 text-xs md:text-sm">스마트 학습 및 클래스 관리 플랫폼</p>
+                            </div>
+
+                            {authMessage && (
+                                <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-xs md:text-sm rounded-lg text-center font-medium">
+                                    {authMessage}
+                                </div>
+                            )}
+
+                            {authView === 'login' && (
+                                <form onSubmit={handleLogin} className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs md:text-sm font-medium text-slate-700 mb-1">이메일 주소</label>
+                                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-indigo-500" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs md:text-sm font-medium text-slate-700 mb-1">비밀번호</label>
+                                        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-indigo-500" />
+                                    </div>
+                                    <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-lg transition shadow-md text-sm">로그인</button>
+                                    <div className="flex justify-between text-xs md:text-sm mt-4 text-slate-600">
+                                        <button type="button" onClick={() => { setAuthMessage(''); setAuthView('signup'); }} className="hover:text-indigo-600">회원가입하기</button>
+                                        <button type="button" onClick={() => { setAuthMessage(''); setAuthView('forgot'); }} className="hover:text-indigo-600">비밀번호 찾기</button>
+                                    </div>
+                                </form>
+                            )}
+
+                            {authView === 'signup' && (
+                                <form onSubmit={handleSignup} className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs md:text-sm font-medium text-slate-700 mb-1">닉네임</label>
+                                        <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-indigo-500" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs md:text-sm font-medium text-slate-700 mb-1">이메일 주소</label>
+                                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-indigo-500" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs md:text-sm font-medium text-slate-700 mb-1">비밀번호 설정</label>
+                                        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-indigo-500" />
+                                    </div>
+                                    <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg transition shadow-md text-sm">가입 완료</button>
+                                    <button type="button" onClick={() => { setAuthMessage(''); setAuthView('login'); }} className="w-full text-center text-xs md:text-sm text-slate-600 hover:text-indigo-600 mt-2">로그인 화면으로 돌아가기</button>
+                                </form>
+                            )}
+
+                            {authView === 'forgot' && (
+                                <div className="space-y-4">
+                                    <p className="text-xs md:text-sm text-slate-600">가입하신 이메일로 임시 비밀번호를 발송해 드립니다.</p>
+                                    <input type="email" className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-sm text-slate-800 focus:outline-none" />
+                                    <button onClick={() => { alert('비밀번호 재설정 메일이 전송되었습니다.'); setAuthView('login'); }} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-lg text-sm">전송하기</button>
+                                    <button type="button" onClick={() => { setAuthMessage(''); setAuthView('login'); }} className="w-full text-center text-xs md:text-sm text-slate-600 hover:text-indigo-600">로그인 화면으로</button>
+                                </div>
+                            )}
